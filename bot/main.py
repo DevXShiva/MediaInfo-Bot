@@ -66,6 +66,15 @@ async def process_video(client, message: Message):
             os.remove(file_path)
         await status_msg.delete()
 
+# ... baaki code ...
+
+app = Client(
+    "MediaInfoBot",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN
+)
+
+# Niche wala if block hata sakte hain ya rehne de sakte hain
 if __name__ == "__main__":
-    print("Bot is starting...")
     app.run()

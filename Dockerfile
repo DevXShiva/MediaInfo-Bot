@@ -20,4 +20,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN chmod +x start.sh
 
 # Bot aur Dummy server start karne ke liye
-CMD ["./start.sh"]
+# Purane CMD ["./start.sh"] ki jagah ye likhein:
+CMD ["python3", "run.py"]

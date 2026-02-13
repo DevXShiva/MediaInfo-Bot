@@ -39,31 +39,35 @@ async def process_video(client, message: Message):
 
     screenshots = []
     try:
-        await status_msg.edit_text("📥 **Fetching Media Segments...**")
+        # 1. SMART DYNAMIC DOWNLOAD
         chunk_count = 0
-        
         async for chunk in client.stream_media(message):
             with open(file_path, "ab") as f:
                 f.write(chunk)
             chunk_count += 1
             
-            # Har 15MB ke baad check karo
             if chunk_count % 15 == 0:
-                # 480p ke liye ye 15-30MB par hi 5 SS de dega
-                # 1080p ke liye ye tab tak download karega jab tak data mil na jaye
+                # ERROR FIX: Try-Except block for MESSAGE_NOT_MODIFIED
+                try:
+                    await status_msg.edit_text(f"📥 **Scanning segments... ({chunk_count}MB)**")
+                except Exception:
+                    # Agar same text hai toh ignore karo aur aage badho
+                    pass
+                
                 screenshots = take_multiple_screenshots(file_path, ss_folder)
                 
                 if len(screenshots) >= 5:
-                    await status_msg.edit_text(f"✅ **Success! Found 5 SS at {chunk_count}MB.**")
                     break
-                else:
-                    await status_msg.edit_text(f"📥 **Scanning... ({chunk_count}MB Downloaded)**")
             
-            # Max limit 150MB for 4K/Huge files safety
-            if chunk_count > 150:
+            if chunk_count > 150: # Max safety limit
                 break
         
-        # 2. Final Extraction
+        # 2. Finalizing
+        try:
+            await status_msg.edit_text("⚙️ **Generating Final Report...**")
+        except Exception:
+            pass
+
         info_text = get_mediainfo(file_path)
         
         if not screenshots:
@@ -81,21 +85,27 @@ async def process_video(client, message: Message):
             
             await message.reply_media_group(media=media_group, quote=True)
             
-            # Cleanup
+            # Cleanup Screenshots
             for s in screenshots:
                 if os.path.exists(s): os.remove(s)
             if os.path.exists(ss_folder): os.rmdir(ss_folder)
             
         else:
-            await message.reply_text(f"❌ **Error:** Screenshots generate nahi ho paye.\n\n{info_text}", quote=True)
+            await message.reply_text(f"❌ **Error:** Screenshots not found.\n\n{info_text}", quote=True)
             
     except Exception as e:
-        await message.reply_text(f"❌ **Error:** `{e}`")
+        # Check if error is not just a Telegram UI error
+        if "MESSAGE_NOT_MODIFIED" not in str(e):
+            await message.reply_text(f"❌ **System Error:** `{e}`")
     
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
-        await status_msg.delete()
+        try:
+            await status_msg.delete()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     app.run()
+

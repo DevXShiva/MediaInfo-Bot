@@ -4,12 +4,11 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InputMediaPhoto
 from bot.utils import get_mediainfo, take_screenshot, take_multiple_screenshots
 
-# Configuration (Render environment variables se lega)
+# Configuration
 API_ID = int(os.environ.get("API_ID"))
 API_HASH = os.environ.get("API_HASH")
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-# Bot initialize karna
 app = Client(
     "MediaInfoBot",
     api_id=API_ID,
@@ -22,20 +21,18 @@ async def start_cmd(client, message):
     await message.reply_text(
         "👋 **Hello!**\n\nMujhe koi bhi Video ya Document file bhejo.\n\n"
         "⚡ **Main Kya Karunga:**\n"
-        "1. Start ke 20MB download karke fast info nikalunga.\n"
-        "2. Video se 5 alag-alag screenshots generate karunga.\n"
+        "1. Dynamic downloading se fast media info nikalunga.\n"
+        "2. Screenshots milte hi download stop kar dunga (Time-Saving).\n"
         "3. Bina kisi external link ke direct Album bhejunga."
     )
 
 @app.on_message(filters.video | filters.document)
 async def process_video(client, message: Message):
-    # Sirf video files ya video documents handle karne ke liye check
     if message.document and not message.document.mime_type.startswith("video/"):
         return
 
-    status_msg = await message.reply_text("⚡ **Fast Processing...**", quote=True)
+    status_msg = await message.reply_text("⚡ **Analyzing Media...**", quote=True)
     
-    # Download path setup
     file_name = f"vid_{message.id}"
     file_path = os.path.join("downloads", file_name)
     ss_folder = os.path.join("downloads", f"ss_{message.id}")
@@ -43,37 +40,48 @@ async def process_video(client, message: Message):
     if not os.path.exists("downloads"):
         os.makedirs("downloads")
 
+    screenshots = []
     try:
-        # 1. PARTIAL DOWNLOAD (Sirf 25MB chunks tak download karega)
-        await status_msg.edit_text("📥 **Partial Downloading (Fast)...**")
-        count = 0
+        # 1. DYNAMIC CHUNK DOWNLOAD
+        await status_msg.edit_text("📥 **Smart Fetching (0MB)...**")
+        chunk_count = 0
+        
         async for chunk in client.stream_media(message):
             with open(file_path, "ab") as f:
                 f.write(chunk)
-            count += 1
-            if count > 25: # Lagbhag 25MB data (enough for start screenshots & info)
+            chunk_count += 1
+            
+            # Har 15 chunks (~15-20MB) par check karo ki screenshots nikal rahe hain ya nahi
+            if chunk_count % 15 == 0:
+                await status_msg.edit_text(f"📸 **Checking for Screenshots ({chunk_count}MB)...**")
+                screenshots = take_multiple_screenshots(file_path, ss_folder)
+                
+                # Agar 5 screenshots mil gaye, toh aage download karne ki zaroorat nahi
+                if len(screenshots) >= 5:
+                    break
+            
+            # Max safety limit (120MB) taaki Render crash na ho agar file bahut hi heavy ho
+            if chunk_count > 120:
                 break
         
-        # 2. Media Info nikalna
-        await status_msg.edit_text("⚙️ **Extracting Media Info...**")
+        # 2. Final Media Info
+        await status_msg.edit_text("⚙️ **Finalizing Media Info...**")
         info_text = get_mediainfo(file_path)
         
-        # 3. Multiple Screenshots nikalna
-        await status_msg.edit_text("📸 **Generating 5 Screenshots...**")
-        screenshots = take_multiple_screenshots(file_path, ss_folder)
+        # 3. Agar loop ke andar screenshots nahi mile (bahut heavy file), toh ek last try
+        if not screenshots:
+            screenshots = take_multiple_screenshots(file_path, ss_folder)
         
         if screenshots:
-            # Media Group (Album) taiyar karna
             media_group = []
             for i, ss_path in enumerate(screenshots):
                 media_group.append(
                     InputMediaPhoto(
                         media=ss_path, 
-                        caption=info_text if i == 0 else "" # Pehle photo par info dikhegi
+                        caption=info_text if i == 0 else ""
                     )
                 )
             
-            # 4. Direct Telegram Album bhejna
             await message.reply_media_group(media=media_group, quote=True)
             
             # Cleanup Screenshots
@@ -82,7 +90,7 @@ async def process_video(client, message: Message):
             if os.path.exists(ss_folder): os.rmdir(ss_folder)
             
         else:
-            # Agar multiple fail ho jaye toh purana single screenshot try karna (Fallback)
+            # Fallback to single screenshot if multiple fails
             screenshot_path = f"{file_path}.jpg"
             if take_screenshot(file_path, screenshot_path):
                 await message.reply_photo(photo=screenshot_path, caption=info_text, quote=True)
@@ -94,11 +102,9 @@ async def process_video(client, message: Message):
         await message.reply_text(f"❌ **Error:** `{e}`")
     
     finally:
-        # 5. Cleanup: Downloaded partial file delete karna
         if os.path.exists(file_path):
             os.remove(file_path)
         await status_msg.delete()
 
 if __name__ == "__main__":
-    print("Bot is starting...")
     app.run()

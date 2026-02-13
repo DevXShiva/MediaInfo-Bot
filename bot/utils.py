@@ -70,7 +70,7 @@ def take_multiple_screenshots(video_path, folder_path):
     
     screenshots = []
     # Hum 10s, 2m, 4m, 6m, aur 8m par screenshots lenge (Partial download ke liye best)
-    time_points = ["00:00:10", "00:02:00", "00:04:00", "00:06:00", "00:08:00"]
+    time_points = ["00:00:50", "00:01:40", "00:03:00", "00:04:50", "00:06:00"]
     
     for i, ts in enumerate(time_points):
         out_file = os.path.join(folder_path, f"ss_{i}.jpg")
@@ -91,3 +91,4 @@ def take_multiple_screenshots(video_path, folder_path):
             continue
             
     return screenshots
+

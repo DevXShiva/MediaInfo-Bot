@@ -22,15 +22,15 @@ def get_mediainfo(file_path):
     for track in info.tracks:
         if track.track_type == "General":
             text_info += f"📁 **File Name:** `{os.path.basename(file_path)}`\n"
-            text_info += f"📦 **Size:** `{human_readable_size(track.file_size)}`\n"
-            text_info += f"⏱️ **Duration:** `{track.other_duration[0] if track.other_duration else 'N/A'}`\n"
-            text_info += f"🎞️ **Format:** `{track.format}`\n"
+            # Actual downloaded data dikhayenge
+            actual_size = os.path.getsize(file_path)
+            text_info += f"📦 **Fetched Data:** `{human_readable_size(actual_size)}` (Partial)\n"
+            text_info += f"⏱️ **Total Duration:** `{track.other_duration[0] if track.other_duration else 'N/A'}`\n"
         
         elif track.track_type == "Video":
             text_info += f"\n📺 **Video Settings**\n"
             text_info += f"🔹 **Resolution:** `{track.width}x{track.height}`\n"
-            text_info += f"🔹 **Codec:** `{track.format} ({track.codec_id})`\n"
-            text_info += f"🔹 **Bitrate:** `{track.other_overall_bit_rate[0] if track.other_overall_bit_rate else 'N/A'}`\n"
+            text_info += f"🔹 **Codec:** `{track.format}`\n"
             text_info += f"🔹 **Frame Rate:** `{track.frame_rate} fps`\n"
             text_info += f"🔹 **Bit Depth:** `{track.bit_depth} bits`\n"
 
@@ -39,56 +39,53 @@ def get_mediainfo(file_path):
             text_info += f"\n🎵 **Audio ({lang})**\n"
             text_info += f"🔸 **Codec:** `{track.format}`\n"
             text_info += f"🔸 **Channels:** `{track.channel_s} ch`\n"
-            text_info += f"🔸 **Bitrate:** `{track.other_bit_rate[0] if track.other_bit_rate else 'N/A'}`\n"
             
     return text_info
 
 def take_screenshot(video_path, output_path):
-    """Purana Single Screenshot Logic (Bina delete kiye)"""
-    info = MediaInfo.parse(video_path)
-    duration = 0
-    for track in info.tracks:
-        if track.track_type == "General":
-            duration = float(track.duration) / 1000 if track.duration else 0
-            break
-    
-    time_to_capture = duration / 2
+    """Purana Single Screenshot Logic (Bina delete kiye - Optimized for speed)"""
     try:
+        # Partial data ke liye -i pehle aur -ss baad mein faster hai
         command = [
-            'ffmpeg', '-ss', str(time_to_capture),
-            '-i', video_path, '-vframes', '1', '-q:v', '2', output_path, '-y'
+            'ffmpeg', '-i', video_path, 
+            '-ss', '00:01:30', # Direct 1.5 min par jump (credits skip)
+            '-vframes', '1', '-q:v', '2', 
+            output_path, '-y'
         ]
-        subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
+        subprocess.run(command, timeout=10, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except:
         return False
 
 def take_multiple_screenshots(video_path, folder_path):
-    """Fast Processing ke liye multiple screenshots logic (Naya Feature)"""
+    """Credits skip karke actual movie scenes nikalne ke liye"""
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
     
     screenshots = []
-    # Hum 10s, 2m, 4m, 6m, aur 8m par screenshots lenge (Partial download ke liye best)
-    time_points = ["00:00:50", "00:01:40", "00:03:00", "00:04:50", "00:06:00"]
+    # Quality scenes ke liye timestamps (Starting ke 1-5 minutes ke beech)
+    # Ye 50-70MB ke data mein aaram se mil jayenge
+    time_points = ["00:01:30", "00:02:45", "00:04:00", "00:05:15", "00:06:30"]
     
     for i, ts in enumerate(time_points):
         out_file = os.path.join(folder_path, f"ss_{i}.jpg")
         try:
-            # -timeout use kiya hai taki agar data na ho to FFmpeg atak na jaye
+            # -i pehle use karne se partial file read error nahi deti
             command = [
-                'ffmpeg', '-ss', ts,
+                'ffmpeg',
                 '-i', video_path,
-                '-vframes', '1', '-q:v', '4', 
+                '-ss', ts,
+                '-vframes', '1',
+                '-q:v', '5', # High quality compression
                 out_file, '-y'
             ]
-            # 5 seconds ka timeout har screenshot ke liye
-            subprocess.run(command, timeout=5, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if os.path.exists(out_file):
+            # 7 seconds ka timeout taaki bot phase na rahe
+            subprocess.run(command, timeout=7, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Khali files ko check karke skip karna
+            if os.path.exists(out_file) and os.path.getsize(out_file) > 0:
                 screenshots.append(out_file)
-        except Exception as e:
-            print(f"Error at {ts}: {e}")
+        except:
             continue
             
     return screenshots
-

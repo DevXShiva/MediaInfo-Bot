@@ -1,7 +1,7 @@
 # Base image
 FROM python:3.10-slim
 
-# System dependencies install karna
+# System dependencies install karna (FFmpeg aur MediaInfo)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     mediainfo \
@@ -10,15 +10,14 @@ RUN apt-get update && apt-get install -y \
 # Working directory set karna
 WORKDIR /app
 
-# Files copy karna
+# Sabhi files copy karna
 COPY . .
 
 # Python libraries install karna
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Start script ko permission dena
-RUN chmod +x start.sh
+# Environment variable for logs (taaki logs real-time dikhein)
+ENV PYTHONUNBUFFERED=1
 
-# Bot aur Dummy server start karne ke liye
-# Purane CMD ["./start.sh"] ki jagah ye likhein:
+# Bot aur Dummy server start karne ke liye (run.py dono ko handle karega)
 CMD ["python3", "run.py"]
